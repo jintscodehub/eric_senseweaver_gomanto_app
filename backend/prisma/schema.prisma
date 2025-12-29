@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Space {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  title       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  nodes       Node[]
+  edges       Edge[]
+  paths       Path[]
+}
+
+model Nodetype {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  parentId    String?
+  parent      Nodetype? @relation("NodetypeHierarchy", fields: [parentId], references: [id])
+  children    Nodetype[] @relation("NodetypeHierarchy")
+
+  schema      Json?    // validation, UI hints, allowed metadata, etc.
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  nodes      Node[]
+}
+
+
+model Node {
+  id          String   @id @default(cuid())
+  spaceId     String
+  space       Space    @relation(fields: [spaceId], references: [id])
+
+  nodetypeId  String
+  nodetype    Nodetype @relation(fields: [nodetypeId], references: [id])
+
+  title       String
+  metadata    Json?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  edgesFrom   Edge[]   @relation("EdgeParent")
+  edgesTo     Edge[]   @relation("EdgeChild")
+  paths       Path[]
+
+  @@index([spaceId])
+}
+
+
+model Edge {
+  id        String  @id @default(cuid())
+
+  spaceId   String
+  space     Space   @relation(fields: [spaceId], references: [id])
+
+  parentId  String
+  parent    Node    @relation("EdgeParent", fields: [parentId], references: [id])
+
+  childId   String
+  child     Node    @relation("EdgeChild", fields: [childId], references: [id])
+
+  slug      String          // URL segment
+  order     Int     @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@unique([parentId, slug])
+  @@index([spaceId])
+  @@index([childId])
+}
+
+model Path {
+  id        String   @id @default(cuid())
+
+  spaceId   String
+  space     Space    @relation(fields: [spaceId], references: [id])
+
+  nodeId    String
+  node      Node     @relation(fields: [nodeId], references: [id])
+
+  path      String   // ltree
+  ctx       String?  // optional context (view, locale, etc.)
+
+  @@unique([spaceId, path])
+  @@index([nodeId])
+}
